@@ -4,6 +4,13 @@ import (
 	"net/http"
 
 	"github.com/grafana/athena-datasource/pkg/athena"
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
+	"github.com/grafana/athena-datasource/pkg/athena/oauth"
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 	"github.com/grafana/grafana-aws-sdk/pkg/awsds"
 	"github.com/grafana/grafana-aws-sdk/pkg/sql/routes"
 )
@@ -68,5 +75,15 @@ func (r *AthenaResourceHandler) Routes() map[string]func(http.ResponseWriter, *h
 	routes["/workgroups"] = r.workgroups
 	routes["/workgroupEngineVersion"] = r.workgroupEngineVersion
 	routes["/externalId"] = r.externalId
-	return routes
+
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// Wrap resource routes to extract and forward OAuth identity token in context.
+	// Implementation isolated in pkg/athena/oauth/routes.go to prevent merge
+	// conflicts when syncing with upstream (grafana/athena-datasource).
+	// =========================================================================
+	return oauth.WrapRoutes(routes)
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/athena-datasource/pkg/athena/oauth"
 	"github.com/grafana/grafana-aws-sdk/pkg/awsds"
 	sqlAPI "github.com/grafana/grafana-aws-sdk/pkg/sql/api"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -103,6 +104,46 @@ func TestConnection(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, "10", mc.wasCalledWith["resultReuseMaxAgeInMinutes"])
 	})
+
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// Tests for per-user connection isolation via __oauth_hash.
+	// =========================================================================
+	t.Run("it should include __oauth_hash when token is in context", func(t *testing.T) {
+		mc := mockClient{}
+		ds := AthenaDatasource{
+			awsDS: &mc,
+		}
+
+		ctx := oauth.WithOAuthToken(context.Background(), "my-oauth-token")
+		fakeConfig := backend.DataSourceInstanceSettings{
+			JSONData: json.RawMessage{},
+		}
+		fakeQueryArgs := json.RawMessage(`{}`)
+		_, err := ds.GetAsyncDB(ctx, fakeConfig, fakeQueryArgs)
+
+		assert.Nil(t, err)
+		assert.Equal(t, oauth.TokenHash("my-oauth-token"), mc.wasCalledWith["__oauth_hash"])
+	})
+
+	t.Run("it should parse __oauth_hash from query args", func(t *testing.T) {
+		mc := mockClient{}
+		ds := AthenaDatasource{
+			awsDS: &mc,
+		}
+
+		fakeConfig := backend.DataSourceInstanceSettings{
+			JSONData: json.RawMessage{},
+		}
+		fakeQueryArgs := json.RawMessage(`{"__oauth_hash": "precalculated-hash"}`)
+		_, err := ds.GetAsyncDB(context.Background(), fakeConfig, fakeQueryArgs)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "precalculated-hash", mc.wasCalledWith["__oauth_hash"])
+	})
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 }
 
 func TestColumns(t *testing.T) {

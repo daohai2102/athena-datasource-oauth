@@ -102,6 +102,67 @@ describe('ConfigEditor', () => {
     });
   });
 
+  // =========================================================================
+  // [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+  // Test for toggling Forward OAuth Identity and updating role ARN / session name.
+  // =========================================================================
+  it('should toggle Forward OAuth Identity and update role arn / session name', async () => {
+    setUpMockBackendServer({
+      put: jest.fn().mockResolvedValue({ datasource: {} }),
+      post: jest.fn().mockResolvedValue([resourceName]),
+    });
+
+    const onChange = jest.fn();
+    const { rerender } = render(<ConfigEditor {...props} onOptionsChange={onChange} />);
+
+    const switchEl = screen.getByTestId(selectors.components.ConfigEditor.OAuthPassThru.wrapper);
+    expect(switchEl).toBeInTheDocument();
+    fireEvent.click(switchEl);
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...props.options,
+      jsonData: { ...props.options.jsonData, oauthPassThru: true },
+    });
+
+    rerender(
+      <ConfigEditor
+        {...props}
+        options={{
+          ...props.options,
+          jsonData: { ...props.options.jsonData, oauthPassThru: true },
+        }}
+        onOptionsChange={onChange}
+      />
+    );
+
+    const roleArnInput = screen.getByTestId(selectors.components.ConfigEditor.OAuthRoleArn.wrapper);
+    expect(roleArnInput).toBeInTheDocument();
+    fireEvent.change(roleArnInput, { target: { value: 'arn:aws:iam::123456789012:role/AthenaUserRole' } });
+    expect(onChange).toHaveBeenCalledWith({
+      ...props.options,
+      jsonData: {
+        ...props.options.jsonData,
+        oauthPassThru: true,
+        oauthRoleArn: 'arn:aws:iam::123456789012:role/AthenaUserRole',
+      },
+    });
+
+    const sessionNameInput = screen.getByTestId(selectors.components.ConfigEditor.OAuthRoleSessionName.wrapper);
+    expect(sessionNameInput).toBeInTheDocument();
+    fireEvent.change(sessionNameInput, { target: { value: 'my-session' } });
+    expect(onChange).toHaveBeenCalledWith({
+      ...props.options,
+      jsonData: {
+        ...props.options.jsonData,
+        oauthPassThru: true,
+        oauthRoleSessionName: 'my-session',
+      },
+    });
+  });
+  // =========================================================================
+  // [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+  // =========================================================================
+
   it('should fetch and display externalId when the auth type is grafana_assume_role', async () => {
     setUpMockBackendServer({
       put: jest.fn().mockResolvedValue({ datasource: {} }),
