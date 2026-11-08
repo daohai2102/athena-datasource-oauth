@@ -4,12 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/google/go-cmp/cmp"
 	athenaclientmock "github.com/grafana/athena-datasource/pkg/athena/api/mock"
 	"github.com/grafana/athena-datasource/pkg/athena/models"
+	"github.com/grafana/athena-datasource/pkg/athena/oauth"
 	"github.com/grafana/grafana-aws-sdk/pkg/awsauth"
 	"github.com/grafana/grafana-aws-sdk/pkg/awsds"
 	"github.com/grafana/grafana-aws-sdk/pkg/sql/api"
@@ -18,6 +23,161 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// =========================================================================
+// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+// Unit tests for OAuth Passthrough authentication via AWS STS.
+// Uses oauth.SetSTSClientFactory to isolate mock STS interactions.
+// =========================================================================
+
+type mockSTSClient struct {
+	calledWith *sts.AssumeRoleWithWebIdentityInput
+	returnOut  *sts.AssumeRoleWithWebIdentityOutput
+	returnErr  error
+}
+
+func (m *mockSTSClient) AssumeRoleWithWebIdentity(ctx context.Context, params *sts.AssumeRoleWithWebIdentityInput, optFns ...func(*sts.Options)) (*sts.AssumeRoleWithWebIdentityOutput, error) {
+	m.calledWith = params
+	return m.returnOut, m.returnErr
+}
+
+func TestNew_OAuth(t *testing.T) {
+	defer oauth.ResetSTSClientFactory()
+
+	t.Run("successfully assumes role with web identity when oauth token is present", func(t *testing.T) {
+		mockSTS := &mockSTSClient{
+			returnOut: &sts.AssumeRoleWithWebIdentityOutput{
+				Credentials: &ststypes.Credentials{
+					AccessKeyId:     aws.String("test-access-key"),
+					SecretAccessKey: aws.String("test-secret-key"),
+					SessionToken:    aws.String("test-session-token"),
+					Expiration:      aws.Time(time.Now().Add(1 * time.Hour)),
+				},
+			},
+		}
+		oauth.SetSTSClientFactory(func(region string, endpoint string, httpClient *http.Client) oauth.STSClient {
+			return mockSTS
+		})
+
+		settings := &models.AthenaDataSourceSettings{
+			OAuthPassThru:        true,
+			OAuthRoleArn:         "arn:aws:iam::123456789012:role/AthenaUserRole",
+			OAuthRoleSessionName: "custom-session",
+			AWSDatasourceSettings: awsds.AWSDatasourceSettings{
+				DefaultRegion: "us-east-1",
+			},
+		}
+
+		validToken := oauth.CreateTestJWT("user-one", time.Now().Add(1*time.Hour))
+		ctx := oauth.WithOAuthToken(context.Background(), validToken)
+		user := &backend.User{Login: "user-one"}
+		ctx = oauth.WithOAuthUser(ctx, user)
+
+		client, err := New(ctx, settings)
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+
+		require.NotNil(t, mockSTS.calledWith)
+		assert.Equal(t, "arn:aws:iam::123456789012:role/AthenaUserRole", *mockSTS.calledWith.RoleArn)
+		assert.Equal(t, "custom-session-user-one", *mockSTS.calledWith.RoleSessionName)
+		assert.Equal(t, validToken, *mockSTS.calledWith.WebIdentityToken)
+	})
+
+	t.Run("falls back to AssumeRoleARN if OAuthRoleArn is not set", func(t *testing.T) {
+		mockSTS := &mockSTSClient{
+			returnOut: &sts.AssumeRoleWithWebIdentityOutput{
+				Credentials: &ststypes.Credentials{
+					AccessKeyId:     aws.String("test-access-key"),
+					SecretAccessKey: aws.String("test-secret-key"),
+					SessionToken:    aws.String("test-session-token"),
+					Expiration:      aws.Time(time.Now().Add(1 * time.Hour)),
+				},
+			},
+		}
+		oauth.SetSTSClientFactory(func(region string, endpoint string, httpClient *http.Client) oauth.STSClient {
+			return mockSTS
+		})
+
+		settings := &models.AthenaDataSourceSettings{
+			OAuthPassThru: true,
+			AWSDatasourceSettings: awsds.AWSDatasourceSettings{
+				DefaultRegion: "us-east-1",
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/FallbackRole",
+			},
+		}
+
+		validToken := oauth.CreateTestJWT("user-two", time.Now().Add(1*time.Hour))
+		ctx := oauth.WithOAuthToken(context.Background(), validToken)
+		client, err := New(ctx, settings)
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+		assert.Equal(t, "arn:aws:iam::123456789012:role/FallbackRole", *mockSTS.calledWith.RoleArn)
+	})
+
+	t.Run("returns error when oauth is enabled but no role ARN configured", func(t *testing.T) {
+		settings := &models.AthenaDataSourceSettings{
+			OAuthPassThru: true,
+			AWSDatasourceSettings: awsds.AWSDatasourceSettings{
+				DefaultRegion: "us-east-1",
+			},
+		}
+
+		validToken := oauth.CreateTestJWT("user-three", time.Now().Add(1*time.Hour))
+		ctx := oauth.WithOAuthToken(context.Background(), validToken)
+		_, err := New(ctx, settings)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no Role ARN is configured")
+	})
+
+	t.Run("returns error when OAuth token is malformed", func(t *testing.T) {
+		settings := &models.AthenaDataSourceSettings{
+			OAuthPassThru: true,
+			OAuthRoleArn:  "arn:aws:iam::123456789012:role/AthenaUserRole",
+			AWSDatasourceSettings: awsds.AWSDatasourceSettings{
+				DefaultRegion: "us-east-1",
+			},
+		}
+
+		ctx := oauth.WithOAuthToken(context.Background(), "glsa_invalid_service_account_token")
+		_, err := New(ctx, settings)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Grafana service account token")
+	})
+
+	t.Run("returns error when OAuth token is expired", func(t *testing.T) {
+		settings := &models.AthenaDataSourceSettings{
+			OAuthPassThru: true,
+			OAuthRoleArn:  "arn:aws:iam::123456789012:role/AthenaUserRole",
+			AWSDatasourceSettings: awsds.AWSDatasourceSettings{
+				DefaultRegion: "us-east-1",
+			},
+		}
+
+		expiredToken := oauth.CreateTestJWT("user-expired", time.Now().Add(-10*time.Minute))
+		ctx := oauth.WithOAuthToken(context.Background(), expiredToken)
+		_, err := New(ctx, settings)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "token expired at")
+	})
+
+	t.Run("returns error when oauth is enabled with no token and no fallback auth", func(t *testing.T) {
+		settings := &models.AthenaDataSourceSettings{
+			OAuthPassThru: true,
+			AWSDatasourceSettings: awsds.AWSDatasourceSettings{
+				DefaultRegion: "us-east-1",
+			},
+		}
+
+		ctx := context.Background()
+		_, err := New(ctx, settings)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no OAuth identity token was provided")
+	})
+}
+
+// =========================================================================
+// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+// =========================================================================
 
 func TestConnection_Execute(t *testing.T) {
 	expectedID := "foo"

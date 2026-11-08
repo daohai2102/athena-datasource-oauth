@@ -29,6 +29,16 @@ type AthenaDataSourceSettings struct {
 	OutputLocation             string `json:"outputLocation"`
 	ResultReuseEnabled         bool   `json:"resultReuseEnabled"`
 	ResultReuseMaxAgeInMinutes int32  `json:"resultReuseMaxAgeInMinutes"`
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// Settings for OAuth Passthrough (Web Identity) authentication.
+	// =========================================================================
+	OAuthPassThru        bool   `json:"oauthPassThru"`
+	OAuthRoleArn         string `json:"oauthRoleArn"`
+	OAuthRoleSessionName string `json:"oauthRoleSessionName"`
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 }
 
 func New(_ context.Context) models.Settings {

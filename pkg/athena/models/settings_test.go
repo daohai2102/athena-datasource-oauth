@@ -28,6 +28,33 @@ func TestLoad_sessionToken(t *testing.T) {
 	assert.Equal(t, "AQoDYXdzEJr//test-session-token", s.SessionToken)
 }
 
+// =========================================================================
+// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+// Unit test for loading OAuth pass-through settings from JSONData.
+// =========================================================================
+func TestLoad_oauthSettings(t *testing.T) {
+	s := &AthenaDataSourceSettings{}
+	config := backend.DataSourceInstanceSettings{
+		JSONData: []byte(`{
+			"authType": "default",
+			"defaultRegion": "us-east-1",
+			"oauthPassThru": true,
+			"oauthRoleArn": "arn:aws:iam::123456789012:role/AthenaUserRole",
+			"oauthRoleSessionName": "custom-session"
+		}`),
+	}
+
+	err := s.Load(config)
+	require.NoError(t, err)
+	assert.True(t, s.OAuthPassThru)
+	assert.Equal(t, "arn:aws:iam::123456789012:role/AthenaUserRole", s.OAuthRoleArn)
+	assert.Equal(t, "custom-session", s.OAuthRoleSessionName)
+}
+
+// =========================================================================
+// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+// =========================================================================
+
 func TestConnection_getRegionKey(t *testing.T) {
 	tests := []struct {
 		description string

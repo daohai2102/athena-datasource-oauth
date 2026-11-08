@@ -70,6 +70,16 @@ export interface AthenaDataSourceOptions extends AwsAuthDataSourceJsonData {
   database?: string;
   workgroup?: string;
   outputLocation?: string;
+  // =========================================================================
+  // [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+  // Options for OAuth Passthrough (Web Identity) authentication.
+  // =========================================================================
+  oauthPassThru?: boolean;
+  oauthRoleArn?: string;
+  oauthRoleSessionName?: string;
+  // =========================================================================
+  // [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+  // =========================================================================
 }
 
 /**

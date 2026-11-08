@@ -12,6 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/grafana/athena-datasource/pkg/athena/models"
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// Import oauth package for OAuth Passthrough (Web Identity) authentication.
+	// =========================================================================
+	"github.com/grafana/athena-datasource/pkg/athena/oauth"
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 	"github.com/grafana/grafana-aws-sdk/pkg/awsauth"
 	"github.com/grafana/grafana-aws-sdk/pkg/awsds"
 	"github.com/grafana/grafana-aws-sdk/pkg/sql/api"
@@ -59,6 +67,22 @@ func New(ctx context.Context, settings sqlModels.Settings) (api.AWSAPI, error) {
 	if region == "" || region == "default" {
 		region = athenaSettings.DefaultRegion
 	}
+
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// OAuth Passthrough Authentication with AWS STS AssumeRoleWithWebIdentity.
+	// Isolated in pkg/athena/oauth/aws_config.go to keep upstream New() changes
+	// minimal and prevent merge conflicts during upstream sync.
+	// =========================================================================
+	if cfg, handled, err := oauth.GetAWSConfig(ctx, athenaSettings, region, httpClient); handled {
+		if err != nil {
+			return nil, err
+		}
+		return &API{Client: athena.NewFromConfig(cfg), settings: athenaSettings}, nil
+	}
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 
 	cfg, err := newAWSConfigProvider().GetConfig(ctx, awsauth.Settings{
 		LegacyAuthType:             athenaSettings.AuthType,

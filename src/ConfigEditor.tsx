@@ -9,6 +9,14 @@ import { Field, Input, SecureSocksProxySettings, useStyles2 } from '@grafana/ui'
 import { gte } from 'semver';
 import { css } from '@emotion/css';
 
+// =========================================================================
+// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+// =========================================================================
+import { OAuthSection } from './OAuthSection';
+// =========================================================================
+// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+// =========================================================================
+
 type Props = DataSourcePluginOptionsEditorProps<AthenaDataSourceOptions, AthenaDataSourceSecureJsonData>;
 
 export type ResourceType = 'catalog' | 'database' | 'workgroup';
@@ -121,6 +129,16 @@ export function ConfigEditor(props: Props) {
         <SecureSocksProxySettings options={props.options} onOptionsChange={onOptionsChange} />
       )}
       <Divider />
+      {/* =========================================================================
+          [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+          OAuth Passthrough configuration section.
+          Isolated in OAuthSection.tsx to avoid merge conflicts with upstream.
+          ========================================================================= */}
+      <OAuthSection options={props.options} onOptionsChange={props.onOptionsChange} />
+      <Divider />
+      {/* =========================================================================
+          [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+          ========================================================================= */}
       <ConfigSection title="Athena Details">
         <Field
           label={selectors.components.ConfigEditor.catalog.input}

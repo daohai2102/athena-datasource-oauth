@@ -78,6 +78,30 @@
       "description": "Result reuse max age in minutes",
       "valueType": "number",
       "target": "jsonData"
+    },
+    {
+      "id": "jsonData.oauthPassThru",
+      "key": "oauthPassThru",
+      "label": "Forward OAuth Identity",
+      "description": "Forward the user's OAuth/OIDC identity to assume an IAM role for Athena queries.",
+      "valueType": "boolean",
+      "target": "jsonData"
+    },
+    {
+      "id": "jsonData.oauthRoleArn",
+      "key": "oauthRoleArn",
+      "label": "OAuth Role ARN",
+      "description": "IAM Role ARN to assume using the Web Identity Token.",
+      "valueType": "string",
+      "target": "jsonData"
+    },
+    {
+      "id": "jsonData.oauthRoleSessionName",
+      "key": "oauthRoleSessionName",
+      "label": "OAuth Role Session Name",
+      "description": "Session name for STS AssumeRoleWithWebIdentity.",
+      "valueType": "string",
+      "target": "jsonData"
     }
   ],
   "groups": [
@@ -96,7 +120,10 @@
         "aws_sdk_settings.endpoint",
         "aws_sdk_settings.accessKey",
         "aws_sdk_settings.secretKey",
-        "aws_sdk_settings.sessionToken"
+        "aws_sdk_settings.sessionToken",
+        "jsonData.oauthPassThru",
+        "jsonData.oauthRoleArn",
+        "jsonData.oauthRoleSessionName"
       ]
     },
     {

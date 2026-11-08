@@ -9,6 +9,13 @@ import (
 	"github.com/grafana/athena-datasource/pkg/athena/api"
 	"github.com/grafana/athena-datasource/pkg/athena/driver"
 	"github.com/grafana/athena-datasource/pkg/athena/models"
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
+	"github.com/grafana/athena-datasource/pkg/athena/oauth"
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 	"github.com/grafana/grafana-aws-sdk/pkg/awsds"
 	sqlAPI "github.com/grafana/grafana-aws-sdk/pkg/sql/api"
 	"github.com/grafana/grafana-aws-sdk/pkg/sql/datasource"
@@ -25,6 +32,13 @@ type athenaQueryArgs struct {
 	Region, Catalog, Database  string
 	ResultReuseEnabled         bool
 	ResultReuseMaxAgeInMinutes int64
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
+	OAuthHash string `json:"__oauth_hash,omitempty"`
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 }
 
 type AthenaDatasource struct {
@@ -86,6 +100,15 @@ func (s *AthenaDatasource) Connect(ctx context.Context, config backend.DataSourc
 	}
 	args["updated"] = config.Updated.String()
 
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// Inject __oauth_hash into connection args to isolate connection pools per user.
+	// =========================================================================
+	oauth.InjectOAuthHashToArgs(ctx, args)
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
+
 	// athena datasources require a region to establish a connection, we use a default region if none was provided
 	if args["region"] == "" {
 		args["region"] = sqlModels.DefaultKey
@@ -101,6 +124,15 @@ func (s *AthenaDatasource) GetAsyncDB(ctx context.Context, config backend.DataSo
 		return nil, err
 	}
 	args["updated"] = config.Updated.String()
+
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// Inject __oauth_hash into connection args to isolate connection pools per user.
+	// =========================================================================
+	oauth.InjectOAuthHashToArgs(ctx, args)
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 
 	// athena datasources require a region to establish a connection, we use a default region if none was provided
 	if args["region"] == "" {
@@ -120,6 +152,18 @@ func (s *AthenaDatasource) getAPI(ctx context.Context, options sqlds.Options) (*
 	lastUpdated := datasource.GetDatasourceLastUpdatedTime(ctx)
 	// we only require region for getting an api, the rest of the options are used per-query
 	args := sqlds.Options{"region": options["region"], "updated": lastUpdated}
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// Inject __oauth_hash into API client args to isolate per-user API clients.
+	// =========================================================================
+	if options["__oauth_hash"] != "" {
+		args["__oauth_hash"] = options["__oauth_hash"]
+	} else {
+		oauth.InjectOAuthHashToArgs(ctx, args)
+	}
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 	res, err := s.awsDS.GetAPI(ctx, id, args)
 	if err != nil {
 		return nil, err
@@ -224,5 +268,15 @@ func parseArgs(queryArgs json.RawMessage) (sqlds.Options, error) {
 	if args.ResultReuseMaxAgeInMinutes > 0 {
 		options[models.ResultReuseMaxAgeInMinutes] = fmt.Sprintf("%d", args.ResultReuseMaxAgeInMinutes)
 	}
+	// =========================================================================
+	// [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// Parse __oauth_hash from query JSON connectionArgs.
+	// =========================================================================
+	if args.OAuthHash != "" {
+		options["__oauth_hash"] = args.OAuthHash
+	}
+	// =========================================================================
+	// [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+	// =========================================================================
 	return options, nil
 }

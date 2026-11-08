@@ -54,6 +54,18 @@
             "type": "string",
             "x-dsconfig-depends-on": "aws_sdk_settings.authType == 'grafana_assume_role' \u0026\u0026 aws_sdk_settings.usePerDatasourceExternalId == true"
           },
+          "oauthPassThru": {
+            "description": "Forward the user's OAuth/OIDC identity to assume an IAM role for Athena queries.",
+            "type": "boolean"
+          },
+          "oauthRoleArn": {
+            "description": "IAM Role ARN to assume using the Web Identity Token.",
+            "type": "string"
+          },
+          "oauthRoleSessionName": {
+            "description": "Session name for STS AssumeRoleWithWebIdentity.",
+            "type": "string"
+          },
           "outputLocation": {
             "description": "S3 output location for query results (e.g. s3://bucket/path).",
             "type": "string"

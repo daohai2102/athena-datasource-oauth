@@ -42,6 +42,24 @@ export const Components = {
       input: 'Column',
       wrapper: 'data-testid onloadcolumn',
     },
+    // =========================================================================
+    // [DOWNSTREAM: daohai2102/athena-datasource-oauth]
+    // =========================================================================
+    OAuthPassThru: {
+      input: 'Forward OAuth Identity',
+      wrapper: 'oauth-pass-thru-switch',
+    },
+    OAuthRoleArn: {
+      input: 'OAuth Role ARN',
+      wrapper: 'oauth-role-arn-input',
+    },
+    OAuthRoleSessionName: {
+      input: 'Role Session Name',
+      wrapper: 'oauth-role-session-name-input',
+    },
+    // =========================================================================
+    // [END DOWNSTREAM: daohai2102/athena-datasource-oauth]
+    // =========================================================================
   },
   QueryEditor: {
     CodeEditor: {
